@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RustFS S3 Upload Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 1rem; }
+    label { display: block; margin-top: 0.75rem; font-weight: 500; }
+    input[type="file"], input[type="text"] { width: 100%; margin-top: 0.25rem; padding: 0.5rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; cursor: pointer; background: #111; color: #fff; border: none; border-radius: 4px; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .result { margin-top: 1rem; padding: 0.75rem; background: #f0f0f0; border-radius: 4px; word-break: break-all; }
+    .result.error { background: #fee; }
+    .result a { color: #06c; }
+  </style>
+</head>
+<body>
+  <h1>RustFS S3 upload test</h1>
+  <form id="form">
+    <label for="file">File</label>
+    <input type="file" id="file" name="file" required>
+    <label for="key">Object key</label>
+    <input type="text" id="key" name="key" placeholder="public-upload/filename.jpg" required>
+    <button type="submit" id="btn">Upload</button>
+  </form>
+  <div id="result"></div>
+
+  <script>
+    const form = document.getElementById("form");
+    const result = document.getElementById("result");
+    const btn = document.getElementById("btn");
+    const fileInput = document.getElementById("file");
+    const keyInput = document.getElementById("key");
+
+    const PUBLIC_PREFIX = "public-upload";
+    function formatObjectKeyFileName(name) {
+      return name.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "") || "file";
+    }
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (file) keyInput.value = PUBLIC_PREFIX + "/" + formatObjectKeyFileName(file.name);
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      result.textContent = "";
+      result.className = "result";
+      btn.disabled = true;
+
+      const fd = new FormData(form);
+      try {
+        const r = await fetch("/upload", { method: "POST", body: fd });
+        const data = await r.json();
+        if (!r.ok) {
+          result.className = "result error";
+          result.textContent = data.error + (data.detail ? ": " + data.detail : "");
+          return;
+        }
+        result.innerHTML = `Uploaded. <a href="${data.url}" target="_blank" rel="noopener">Open file</a><br><small>If the link shows Access Denied, set a public read policy for the <code>public-upload/</code> prefix (see <code>policy-public-read-prefix.json</code>).</small>`;
+      } catch (err) {
+        result.className = "result error";
+        result.textContent = "Request failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
