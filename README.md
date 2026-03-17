@@ -184,7 +184,12 @@ Result: clients hit `https://storage.example.com/...` via Cloudflare; cache miss
 
 ## 6. IAM and Security Policies
 
-RustFS uses AWS-compatible IAM policies to control access. You can attach these to specific **Access Keys** via the Web Console (`:9001`) or the `mc` client.
+RustFS uses AWS-compatible IAM policies to control access. It distinguishes between **Root Admins** and **Service Accounts**.
+
+### The Workflow
+
+1. **Root Admin**: Uses the master credentials from `.env`. This user has full control and is used to create buckets and other users via the Web Console (`:9001`).
+2. **Service Accounts**: These are restricted keys created by the Admin for specific applications. They are governed by the policies below to ensure "Least Privilege" security.
 
 ### Common Policy Examples
 
