@@ -28,21 +28,85 @@
   </form>
   <div id="result"></div>
 
+  <hr style="margin-top: 2rem;">
+  <h1>Files in bucket</h1>
+  <button id="refreshBtn">Refresh list</button>
+  <div id="fileList" style="margin-top: 1rem;"></div>
+
   <script>
     const form = document.getElementById("form");
     const result = document.getElementById("result");
     const btn = document.getElementById("btn");
     const fileInput = document.getElementById("file");
     const keyInput = document.getElementById("key");
+    const fileList = document.getElementById("fileList");
+    const refreshBtn = document.getElementById("refreshBtn");
 
     const PUBLIC_PREFIX = "public-upload";
+
     function formatObjectKeyFileName(name) {
       return name.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "") || "file";
     }
+
     fileInput.addEventListener("change", () => {
-      const file = fileInput.files?.[0];
-      if (file) keyInput.value = PUBLIC_PREFIX + "/" + formatObjectKeyFileName(file.name);
+      if (!fileInput.files?.[0]) return;
+      // Only auto-fill if the key input is empty or looks like a default prefix
+      if (!keyInput.value || keyInput.value === PUBLIC_PREFIX + "/") {
+        keyInput.value = PUBLIC_PREFIX + "/" + formatObjectKeyFileName(fileInput.files[0].name);
+      }
     });
+
+    async function refreshFiles() {
+      fileList.textContent = "Loading...";
+      try {
+        const r = await fetch("/files");
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Failed to fetch files");
+        
+        if (data.files.length === 0) {
+          fileList.textContent = "No files found.";
+          return;
+        }
+
+        fileList.innerHTML = "";
+        data.files.forEach(f => {
+          const div = document.createElement("div");
+          div.className = "result";
+          div.style.marginBottom = "0.5rem";
+          div.innerHTML = `
+            <strong>${f.key}</strong> (${(f.size / 1024).toFixed(1)} KB)<br>
+            <a href="${f.url}" target="_blank">View</a> |
+            <a href="#" onclick="prepareUpdate('${f.key}'); return false;">Update</a> |
+            <a href="#" onclick="deleteFile('${f.key}'); return false;" style="color: red;">Delete</a>
+          `;
+          fileList.appendChild(div);
+        });
+      } catch (err) {
+        fileList.innerHTML = `<div class="result error">${err.message}</div>`;
+      }
+    }
+
+    window.prepareUpdate = (key) => {
+      keyInput.value = key;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.deleteFile = async (key) => {
+      if (!confirm(`Delete ${key}?`)) return;
+      try {
+        const r = await fetch(`/files/${key}`, { method: "DELETE" });
+        if (!r.ok) {
+          const data = await r.json();
+          throw new Error(data.error || "Delete failed");
+        }
+        refreshFiles();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    refreshBtn.addEventListener("click", refreshFiles);
+    refreshFiles();
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -59,7 +123,8 @@
           result.textContent = data.error + (data.detail ? ": " + data.detail : "");
           return;
         }
-        result.innerHTML = `Uploaded. <a href="${data.url}" target="_blank" rel="noopener">Open file</a><br><small>If the link shows Access Denied, set a public read policy for the <code>public-upload/</code> prefix (see <code>policy-public-read-prefix.json</code>).</small>`;
+        result.innerHTML = `Success! <a href="${data.url}" target="_blank" rel="noopener">Open file</a>`;
+        refreshFiles();
       } catch (err) {
         result.className = "result error";
         result.textContent = "Request failed: " + err.message;

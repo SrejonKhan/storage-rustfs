@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import multer from "multer";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -29,6 +29,26 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
+
+app.get("/files", async (req, res) => {
+  try {
+    const command = new ListObjectsV2Command({ Bucket: bucket });
+    const data = await s3.send(command);
+    const files = (data.Contents ?? []).map((obj) => ({
+      key: obj.Key,
+      size: obj.Size,
+      lastModified: obj.LastModified,
+      url: `${publicBaseUrl.replace(/\/$/, "")}/${bucket}/${obj.Key}`,
+    }));
+    res.json({ ok: true, files });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({
+      error: "Failed to list files",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
@@ -73,6 +93,28 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
   const url = `${publicBaseUrl.replace(/\/$/, "")}/${bucket}/${key}`;
   res.json({ ok: true, key, url });
+});
+
+app.delete("/files/*", async (req, res) => {
+  const key = req.params[0];
+  if (!key) {
+    return res.status(400).json({ error: "Key is required" });
+  }
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+    await s3.send(command);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({
+      error: "Delete failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 app.listen(PORT, () => {
