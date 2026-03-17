@@ -182,6 +182,46 @@ Result: clients hit `https://storage.example.com/...` via Cloudflare; cache miss
 
 ---
 
+## 6. IAM and Security Policies
+
+RustFS uses AWS-compatible IAM policies to control access. You can attach these to specific **Access Keys** via the Web Console (`:9001`) or the `mc` client.
+
+### Common Policy Examples
+
+#### A. Single Bucket Restricted Access
+
+Gives a user full access (Read/Write/Delete) to **only one** bucket. Useful for per-app credentials.
+
+- **File**: `policy-single-bucket.json`
+- **Action**: Replace `YOUR_BUCKET_NAME` with your actual bucket name and apply to the user.
+
+#### B. Global Read-Only Access
+
+Allows a user to list and download objects from **all** buckets, but prevents any uploads/deletions.
+
+- **File**: `policy-read-only.json`
+
+#### C. Public Anonymous Read (CDN)
+
+Allows anyone to download files via URL without an access key.
+
+- **File**: `policy-public-read.json`
+- **Apply to**: The **Bucket** itself (not a user) using the `mc anonymous` command:
+
+```bash
+mc anonymous set-json policy-public-read.json rustfs/my-public-bucket
+```
+
+### How to apply a User Policy (via Web Console)
+
+1. Open the Web Console: `https://storage-console.example.com`.
+2. Go to **IAM > Policies** and click **Create Policy**.
+3. Paste the JSON from one of the example files.
+4. Go to **IAM > Users**, select the user/access key, and click **Attached Policies**.
+5. Add the policy you just created.
+
+---
+
 ## Quick reference
 
 | Item           | Value                                                                                                                      |
